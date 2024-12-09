@@ -2,6 +2,7 @@
 function handleSensorData() {
     if ('Magnetometer' in window) {
       const sensor = new Magnetometer();
+      console.log("kyfhg",sensor)
   
       // Add event listener for reading changes
       sensor.addEventListener('reading', () => {

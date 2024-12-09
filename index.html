@@ -3,14 +3,69 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Phone Compass</title>
+  <title>Direction in Box</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    .direction {
+      font-size: 20px;
+      margin-top: 20px;
+    }
+  </style>
 </head>
 <body>
-  <h1>Magnetometer Data</h1>
-  <p><strong>X-axis:</strong> <span id="x">Waiting for sensor...</span></p>
-  <p><strong>Y-axis:</strong> <span id="y">Waiting for sensor...</span></p>
-  <p><strong>Z-axis:</strong> <span id="z">Waiting for sensor...</span></p>
+  <h1>Phone Direction Estimation</h1>
+  <p>Move the phone around (simulating tunnel-like movement) to see the estimated direction.</p>
+  <div class="direction">
+    <p><strong>Orientation:</strong></p>
+    <p id="orientation"></p>
+  </div>
 
-  <script src="script.js"></script>
+  <script>
+    // Variables to hold the orientation data
+    let alpha = 0, beta = 0, gamma = 0;
+
+    // Listen for accelerometer and gyroscope data
+    if (window.DeviceOrientationEvent) {
+      window.addEventListener("deviceorientation", (event) => {
+        // Device orientation data (accelerometer)
+        alpha = event.alpha;   // Rotation around Z-axis (compass heading)
+        beta = event.beta;     // Rotation around X-axis (tilt forward/backward)
+        gamma = event.gamma;   // Rotation around Y-axis (tilt left/right)
+
+        // Update the orientation on the page
+        document.getElementById("orientation").innerHTML = `
+          Alpha (Z-axis): ${alpha.toFixed(2)}°<br>
+          Beta (X-axis): ${beta.toFixed(2)}°<br>
+          Gamma (Y-axis): ${gamma.toFixed(2)}°<br>
+        `;
+      });
+    } else {
+      document.getElementById("orientation").innerHTML = "Device orientation is not supported.";
+    }
+
+    // Listen for gyroscope data if available
+    if (window.DeviceMotionEvent) {
+      window.addEventListener("devicemotion", (event) => {
+        // Gyroscope data (rotation rates)
+        let rotationRate = event.rotationRate;
+        if (rotationRate) {
+          // Rotation speed around each axis (in degrees per second)
+          let rotationX = rotationRate.alpha || 0;
+          let rotationY = rotationRate.beta || 0;
+          let rotationZ = rotationRate.gamma || 0;
+
+          // Use rotation data to estimate direction of movement or change in orientation
+          // Display this data to the user or log it
+          console.log(`Rotation around X: ${rotationX}°/s`);
+          console.log(`Rotation around Y: ${rotationY}°/s`);
+          console.log(`Rotation around Z: ${rotationZ}°/s`);
+        }
+      });
+    }
+
+  </script>
 </body>
 </html>
