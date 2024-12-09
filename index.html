@@ -102,13 +102,17 @@
     };
 
     const handleDeviceOrientation = (event) => {
-      const heading = event.webkitCompassHeading || Math.abs(event.alpha - 360);
-      if (initialHeading === null) {
-        initialHeading = heading;
+      // For devices that support magnetic heading
+      const heading = event.webkitCompassHeading || event.alpha;
+
+      if (heading !== undefined && heading !== null) {
+        if (initialHeading === null) {
+          initialHeading = heading;
+        }
+        const adjustedHeading = heading - initialHeading;
+        compass1.style.transform = `rotate(${-adjustedHeading}deg)`;
+        currentHeading = adjustedHeading;
       }
-      const adjustedHeading = heading - initialHeading;
-      compass1.style.transform = `rotate(${-adjustedHeading}deg)`;
-      currentHeading = adjustedHeading;
     };
 
     const handleDeviceMotion = (event) => {
