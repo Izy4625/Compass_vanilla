@@ -1,136 +1,183 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Accurate Dual Compass</title>
-  <style>
-    body {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      margin: 0;
-      background: #f4f4f4;
-      font-family: Arial, sans-serif;
-    }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>Document</title>
+    <style>
+      body {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        justify-content: center;
+        align-items: center;
+      }
 
-    .compass-container {
-      display: flex;
-      gap: 50px;
-    }
+      .compass {
+        position: relative;
+        width: 320px;
+        height: 320px;
+        border-radius: 50%;
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+        margin-bottom: 20px;
+      }
 
-    .compass {
-      position: relative;
-      width: 200px;
-      height: 200px;
-      border-radius: 50%;
-      border: 5px solid #ccc;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-      background: url('https://purepng.com/public/uploads/large/purepng.com-compasscompassinstrumentnavigationcardinal-directionspointsdiagram-1701527842316onq7x.png')
-        no-repeat center / contain;
-    }
+      .compass > .arrow {
+        position: absolute;
+        width: 0;
+        height: 0;
+        top: -20px;
+        left: 50%;
+        transform: translateX(-50%);
+        border-style: solid;
+        border-width: 30px 20px 0 20px;
+        border-color: red transparent transparent transparent;
+        z-index: 1;
+      }
 
-    .arrow {
-      position: absolute;
-      width: 0;
-      height: 0;
-      top: -15px;
-      left: 50%;
-      transform: translateX(-50%);
-      border-style: solid;
-      border-width: 30px 20px 0 20px;
-      border-color: red transparent transparent transparent;
-      z-index: 1;
-    }
+      .compass > .compass-circle,
+      .compass > .my-point {
+        position: absolute;
+        width: 90%;
+        height: 90%;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        transition: transform 0.1s ease-out;
+        background: url(https://purepng.com/public/uploads/large/purepng.com-compasscompassinstrumentnavigationcardinal-directionspointsdiagram-1701527842316onq7x.png)
+          center no-repeat;
+        background-size: contain;
+      }
 
-    button {
-      margin-top: 20px;
-      padding: 10px 20px;
-      font-size: 16px;
-      cursor: pointer;
-      border: none;
-      background-color: #007bff;
-      color: white;
-      border-radius: 5px;
-      transition: background-color 0.2s;
-    }
+      .compass > .my-point {
+        opacity: 0;
+        width: 20%;
+        height: 20%;
+        background: rgb(8, 223, 69);
+        border-radius: 50%;
+        transition: opacity 0.5s ease-out;
+      }
 
-    button:hover {
-      background-color: #0056b3;
-    }
-  </style>
-</head>
-<body>
-  <div class="compass-container">
-    <div class="compass" id="compass1">
+      .start-btn,
+      .toggle-btn {
+        margin-bottom: 20px;
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="compass">
       <div class="arrow"></div>
+      <div class="compass-circle"></div>
+      <div class="my-point"></div>
     </div>
-    <div class="compass" id="compass2">
+    <button class="start-btn">Start Compass</button>
+    <button class="toggle-btn">Deactivate Compass</button>
+    
+    <div class="compass">
       <div class="arrow"></div>
+      <div class="compass-circle"></div>
+      <div class="my-point"></div>
     </div>
-  </div>
-  <button id="start">Start Compass</button>
-  <script>
-    const compass1 = document.getElementById("compass1");
-    const compass2 = document.getElementById("compass2");
-    const startButton = document.getElementById("start");
+    
+    <script>
+      const compassCircle = document.querySelector(".compass-circle");
+      const myPoint = document.querySelector(".my-point");
+      const startBtn = document.querySelector(".start-btn");
+      const toggleBtn = document.querySelector(".toggle-btn");
 
-    let initialHeading = null;
-    let currentHeading = 0;
-    let gyroAngle = 0; // To track the second compass
-    let lastUpdateTime = null;
+      let compassActive = true; // Flag to track if the first compass is active
 
-    const isFlat = ({ x, y, z }) => {
-      // Device is flat if Z-axis (gravity) is dominant
-      return Math.abs(z) > Math.abs(x) && Math.abs(z) > Math.abs(y);
-    };
+      const isIOS =
+        navigator.userAgent.match(/(iPod|iPhone|iPad)/) &&
+        navigator.userAgent.match(/AppleWebKit/);
 
-    const smoothValue = (current, target, factor) => {
-      return current + (target - current) * factor;
-    };
+      let compass = 0;
+      let pointDegree;
 
-    const startCompass = () => {
-      if (window.DeviceOrientationEvent) {
-        window.addEventListener("deviceorientation", handleDeviceOrientation);
-      }
+      function init() {
+        startBtn.addEventListener("click", startCompass);
+        toggleBtn.addEventListener("click", toggleCompass);
+        navigator.geolocation.getCurrentPosition(locationHandler);
 
-      if (window.DeviceMotionEvent) {
-        window.addEventListener("devicemotion", handleDeviceMotion);
-      }
-    };
-
-    const handleDeviceOrientation = (event) => {
-      const heading = event.webkitCompassHeading || Math.abs(event.alpha - 360);
-      if (initialHeading === null) {
-        initialHeading = heading;
-      }
-      const adjustedHeading = heading - initialHeading;
-      compass1.style.transform = `rotate(${-adjustedHeading}deg)`;
-      currentHeading = adjustedHeading;
-    };
-
-    const handleDeviceMotion = (event) => {
-      const acceleration = event.accelerationIncludingGravity;
-      if (isFlat(acceleration)) {
-        const now = Date.now();
-        if (!lastUpdateTime) {
-          lastUpdateTime = now;
-          return;
+        if (!isIOS) {
+          window.addEventListener("deviceorientationabsolute", handler, true);
         }
-        const deltaTime = (now - lastUpdateTime) / 1000; // in seconds
-        lastUpdateTime = now;
-
-        const rotationRate = event.rotationRate.alpha || 0;
-        gyroAngle += rotationRate * deltaTime;
-        gyroAngle %= 360; // Keep within 0-360 range
-        gyroAngle = smoothValue(gyroAngle, currentHeading, 0.1); // Smooth transition
-        compass2.style.transform = `rotate(${-gyroAngle}deg)`;
       }
-    };
 
-    startButton.addEventListener("click", startCompass);
-  </script>
-</body>
+      function startCompass() {
+        if (isIOS) {
+          DeviceOrientationEvent.requestPermission()
+            .then((response) => {
+              if (response === "granted") {
+                window.addEventListener("deviceorientation", handler, true);
+              } else {
+                alert("Permission to use compass must be granted.");
+              }
+            })
+            .catch(() => alert("Not supported"));
+        }
+      }
+
+      function handler(e) {
+        if (compassActive) {
+          compass = e.webkitCompassHeading || Math.abs(e.alpha - 360);
+          compassCircle.style.transform = `translate(-50%, -50%) rotate(${-compass}deg)`;
+        }
+
+        // ±15 degree
+        if (
+          (pointDegree < Math.abs(compass) && pointDegree + 15 > Math.abs(compass)) ||
+          pointDegree > Math.abs(compass + 15) ||
+          pointDegree < Math.abs(compass)
+        ) {
+          myPoint.style.opacity = 0;
+        } else if (pointDegree) {
+          myPoint.style.opacity = 1;
+        }
+      }
+
+      function locationHandler(position) {
+        const { latitude, longitude } = position.coords;
+        pointDegree = calcDegreeToPoint(latitude, longitude);
+
+        if (pointDegree < 0) {
+          pointDegree = pointDegree + 360;
+        }
+      }
+
+      function calcDegreeToPoint(latitude, longitude) {
+        // Qibla geolocation (example)
+        const point = {
+          lat: 21.422487,
+          lng: 39.826206
+        };
+
+        const phiK = (point.lat * Math.PI) / 180.0;
+        const lambdaK = (point.lng * Math.PI) / 180.0;
+        const phi = (latitude * Math.PI) / 180.0;
+        const lambda = (longitude * Math.PI) / 180.0;
+        const psi =
+          (180.0 / Math.PI) *
+          Math.atan2(
+            Math.sin(lambdaK - lambda),
+            Math.cos(phi) * Math.tan(phiK) - Math.sin(phi) * Math.cos(lambdaK - lambda)
+          );
+        return Math.round(psi);
+      }
+
+      function toggleCompass() {
+        // Toggle the magnetic compass activation
+        compassActive = !compassActive;
+
+        // Update button text based on compass state
+        toggleBtn.textContent = compassActive ? "Deactivate Compass" : "Activate Compass";
+      }
+
+      init();
+    </script>
+  </body>
 </html>
