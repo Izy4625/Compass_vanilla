@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dual Compass</title>
+  <title>Accurate Dual Compass</title>
   <style>
     body {
       display: flex;
@@ -12,6 +12,7 @@
       justify-content: center;
       height: 100vh;
       margin: 0;
+      background: #f4f4f4;
       font-family: Arial, sans-serif;
     }
 
@@ -25,18 +26,17 @@
       width: 200px;
       height: 200px;
       border-radius: 50%;
-      box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
-      margin: auto;
-      background: url(https://purepng.com/public/uploads/large/purepng.com-compasscompassinstrumentnavigationcardinal-directionspointsdiagram-1701527842316onq7x.png)
-        center no-repeat;
-      background-size: contain;
+      border: 5px solid #ccc;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      background: url('https://purepng.com/public/uploads/large/purepng.com-compasscompassinstrumentnavigationcardinal-directionspointsdiagram-1701527842316onq7x.png')
+        no-repeat center / contain;
     }
 
     .arrow {
       position: absolute;
       width: 0;
       height: 0;
-      top: -20px;
+      top: -15px;
       left: 50%;
       transform: translateX(-50%);
       border-style: solid;
@@ -47,88 +47,88 @@
 
     button {
       margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      border: none;
+      background-color: #007bff;
+      color: white;
+      border-radius: 5px;
+      transition: background-color 0.2s;
+    }
+
+    button:hover {
+      background-color: #0056b3;
     }
   </style>
 </head>
 <body>
   <div class="compass-container">
-    <div class="compass" id="firstCompass">
+    <div class="compass" id="compass1">
       <div class="arrow"></div>
     </div>
-    <div class="compass" id="secondCompass">
+    <div class="compass" id="compass2">
       <div class="arrow"></div>
     </div>
   </div>
-  <button id="startButton">Start</button>
-
+  <button id="start">Start Compass</button>
   <script>
-    const firstCompass = document.getElementById("firstCompass");
-    const secondCompass = document.getElementById("secondCompass");
-    const startButton = document.getElementById("startButton");
+    const compass1 = document.getElementById("compass1");
+    const compass2 = document.getElementById("compass2");
+    const startButton = document.getElementById("start");
 
     let initialHeading = null;
     let currentHeading = 0;
-    let isFlat = true;
+    let gyroAngle = 0; // To track the second compass
+    let lastUpdateTime = null;
 
-    let lastGyroZ = 0; // To detect rotational movement
-    let smoothRotation = 0;
+    const isFlat = ({ x, y, z }) => {
+      // Device is flat if Z-axis (gravity) is dominant
+      return Math.abs(z) > Math.abs(x) && Math.abs(z) > Math.abs(y);
+    };
 
-    const isIOS =
-      navigator.userAgent.match(/(iPod|iPhone|iPad)/) &&
-      navigator.userAgent.match(/AppleWebKit/);
+    const smoothValue = (current, target, factor) => {
+      return current + (target - current) * factor;
+    };
 
-    function startCompass() {
-      if (isIOS) {
-        DeviceOrientationEvent.requestPermission()
-          .then((response) => {
-            if (response === "granted") {
-              window.addEventListener("deviceorientation", handleOrientation, true);
-            } else {
-              alert("Permission required for compass functionality.");
-            }
-          })
-          .catch(() => alert("Device orientation not supported on this device."));
-      } else {
-        window.addEventListener("deviceorientationabsolute", handleOrientation, true);
+    const startCompass = () => {
+      if (window.DeviceOrientationEvent) {
+        window.addEventListener("deviceorientation", handleDeviceOrientation);
       }
 
-      window.addEventListener("devicemotion", handleMotion);
-    }
+      if (window.DeviceMotionEvent) {
+        window.addEventListener("devicemotion", handleDeviceMotion);
+      }
+    };
 
-    function handleOrientation(event) {
-      const compassHeading = event.webkitCompassHeading || Math.abs(event.alpha - 360);
-
+    const handleDeviceOrientation = (event) => {
+      const heading = event.webkitCompassHeading || Math.abs(event.alpha - 360);
       if (initialHeading === null) {
-        initialHeading = compassHeading;
+        initialHeading = heading;
       }
-
-      const adjustedHeading = compassHeading - initialHeading;
-      firstCompass.style.transform = `rotate(${-adjustedHeading}deg)`;
+      const adjustedHeading = heading - initialHeading;
+      compass1.style.transform = `rotate(${-adjustedHeading}deg)`;
       currentHeading = adjustedHeading;
-    }
+    };
 
-    function handleMotion(event) {
-      const { alpha, beta, gamma } = event.rotationRate;
-      const flatThreshold = 10; // Ensure the phone is flat
+    const handleDeviceMotion = (event) => {
+      const acceleration = event.accelerationIncludingGravity;
+      if (isFlat(acceleration)) {
+        const now = Date.now();
+        if (!lastUpdateTime) {
+          lastUpdateTime = now;
+          return;
+        }
+        const deltaTime = (now - lastUpdateTime) / 1000; // in seconds
+        lastUpdateTime = now;
 
-      if (Math.abs(beta) < flatThreshold && Math.abs(gamma) < flatThreshold) {
-        isFlat = true;
-      } else {
-        isFlat = false;
+        const rotationRate = event.rotationRate.alpha || 0;
+        gyroAngle += rotationRate * deltaTime;
+        gyroAngle %= 360; // Keep within 0-360 range
+        gyroAngle = smoothValue(gyroAngle, currentHeading, 0.1); // Smooth transition
+        compass2.style.transform = `rotate(${-gyroAngle}deg)`;
       }
-
-      if (isFlat) {
-        // Gyro Z-axis rotation for direction change
-        const gyroZ = event.rotationRate.alpha;
-        const rotationDelta = gyroZ - lastGyroZ;
-
-        smoothRotation += rotationDelta * 0.1; // Scale down rotation for smoothness
-        smoothRotation = smoothRotation % 360; // Keep rotation within 0-360
-        secondCompass.style.transform = `rotate(${-smoothRotation}deg)`;
-
-        lastGyroZ = gyroZ;
-      }
-    }
+    };
 
     startButton.addEventListener("click", startCompass);
   </script>
