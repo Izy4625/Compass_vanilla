@@ -81,6 +81,7 @@
     let currentHeading = 0;
     let gyroAngle = 0; // To track the second compass
     let lastUpdateTime = null;
+    let isSecondCompassSynchronized = false;
 
     const isFlat = ({ x, y, z }) => {
       // Device is flat if Z-axis (gravity) is dominant
@@ -102,26 +103,33 @@
     };
 
     const handleDeviceOrientation = (event) => {
-  let heading = event.webkitCompassHeading;
+      let heading = event.webkitCompassHeading;
 
-  // If webkitCompassHeading isn't available, fallback to event.alpha (this works for devices without magnetic sensors)
-  if (heading === undefined || heading === null) {
-    heading = Math.abs(event.alpha - 360);
-  }
+      // If webkitCompassHeading isn't available, fallback to event.alpha (this works for devices without magnetic sensors)
+      if (heading === undefined || heading === null) {
+        heading = Math.abs(event.alpha - 360);
+      }
 
-  // If we don't have a valid heading, we should ignore it.
-  if (heading !== undefined && heading !== null) {
-    if (initialHeading === null) {
-      initialHeading = heading; // Set the initial heading when the first event is triggered.
-    }
-    
-    const adjustedHeading = heading - initialHeading; // Adjust the heading based on the initial value.
-    
-    // Apply rotation to the first compass
-    compass1.style.transform = `rotate(${-adjustedHeading}deg)`;
-    currentHeading = adjustedHeading;
-  }
-};
+      // If we don't have a valid heading, we should ignore it.
+      if (heading !== undefined && heading !== null) {
+        if (initialHeading === null) {
+          initialHeading = heading; // Set the initial heading when the first event is triggered.
+        }
+
+        const adjustedHeading = heading - initialHeading; // Adjust the heading based on the initial value.
+
+        // Apply rotation to the first compass
+        compass1.style.transform = `rotate(${-adjustedHeading}deg)`;
+        currentHeading = adjustedHeading;
+
+        // If the second compass hasn't been synchronized yet, synchronize it with the first compass
+        if (!isSecondCompassSynchronized) {
+          gyroAngle = adjustedHeading;
+          compass2.style.transform = `rotate(${-gyroAngle}deg)`; // Sync second compass with first
+          isSecondCompassSynchronized = true; // Mark as synchronized
+        }
+      }
+    };
 
     const handleDeviceMotion = (event) => {
       const acceleration = event.accelerationIncludingGravity;
@@ -137,7 +145,8 @@
         const rotationRate = event.rotationRate.alpha || 0;
         gyroAngle += rotationRate * deltaTime;
         gyroAngle %= 360; // Keep within 0-360 range
-        gyroAngle = smoothValue(gyroAngle, currentHeading, 0.1); // Smooth transition
+
+        // Now, gyroAngle operates independently of the first compass
         compass2.style.transform = `rotate(${-gyroAngle}deg)`;
       }
     };
