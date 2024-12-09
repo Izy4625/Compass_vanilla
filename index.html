@@ -1,120 +1,147 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dual Compass</title>
-  <style>
-    body {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      background-color: #f0f0f0;
-    }
-
-    .compass {
-      position: relative;
-      width: 200px;
-      height: 200px;
-      margin: 20px;
-      border-radius: 50%;
-      border: 5px solid #333;
-      background: url(https://purepng.com/public/uploads/large/purepng.com-compasscompassinstrumentnavigationcardinal-directionspointsdiagram-1701527842316onq7x.png)
-        no-repeat center;
-      background-size: contain;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .arrow {
-      position: absolute;
-      width: 0;
-      height: 0;
-      border-style: solid;
-      border-width: 50px 25px 0 25px;
-      border-color: red transparent transparent transparent;
-    }
-
-    button {
-      margin-top: 20px;
-      padding: 10px 20px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indoor Dual Compass</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        .compass {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            margin: 20px;
+            border-radius: 50%;
+            border: 5px solid #333;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .compass-bg {
+            position: absolute;
+            width: 90%;
+            height: 90%;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text x="50" y="20" text-anchor="middle" fill="black">N</text><text x="50" y="95" text-anchor="middle" fill="black">S</text><text x="20" y="50" text-anchor="middle" fill="black">W</text><text x="80" y="50" text-anchor="middle" fill="black">E</text></svg>') no-repeat center;
+            background-size: contain;
+            z-index: 1;
+        }
+        .arrow {
+            position: absolute;
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 50px 25px 0 25px;
+            border-color: red transparent transparent transparent;
+            z-index: 2;
+        }
+        #headingDisplay {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body>
-  <div class="compass" id="compass1">
-    <div class="arrow"></div>
-  </div>
-  <div class="compass" id="compass2">
-    <div class="arrow"></div>
-  </div>
-  <button id="startBtn">Start</button>
-  <script>
-    const compass1Arrow = document.querySelector("#compass1 .arrow");
-    const compass2Arrow = document.querySelector("#compass2 .arrow");
+    <div class="compass" id="compass1">
+        <div class="compass-bg"></div>
+        <div class="arrow"></div>
+    </div>
+    <div class="compass" id="compass2">
+        <div class="compass-bg"></div>
+        <div class="arrow"></div>
+    </div>
+    <div id="headingDisplay">Heading: 0°</div>
+    <button id="startBtn">Start Tracking</button>
 
-    let initialDirection = null;
-    let lastRotationTimestamp = 0;
-    let currentDirection = 0;
+    <script>
+        class IndoorCompass {
+            constructor(arrow) {
+                this.arrow = arrow;
+                this.currentHeading = 0;
+                this.lastTimestamp = 0;
+                this.driftCorrectionFactor = 0.99;
+            }
 
-    // Function to update the first compass
-    function updateCompass1(e) {
-      const heading = e.webkitCompassHeading || Math.abs(e.alpha - 360);
-      compass1Arrow.style.transform = `rotate(${heading}deg)`;
+            initialize(initialHeading = 0) {
+                this.currentHeading = initialHeading;
+            }
 
-      if (initialDirection === null) {
-        initialDirection = heading;
-      }
-    }
+            processGyroscopeData(event) {
+                const now = Date.now();
+                const deltaTime = (now - this.lastTimestamp) / 1000;
+                
+                // Extract rotation rate around Z-axis
+                const rotationRateZ = event.alpha || 0;
+                
+                // Integrate rotation rate, applying drift correction
+                this.currentHeading += rotationRateZ * deltaTime * this.driftCorrectionFactor;
+                this.currentHeading %= 360;
+                
+                this.arrow.style.transform = `rotate(${this.currentHeading}deg)`;
+                
+                this.lastTimestamp = now;
+                return this.currentHeading;
+            }
 
-    // Function to update the second compass (gyroscope-based)
-    function updateCompass2(e) {
-      const now = Date.now();
-      const deltaTime = (now - lastRotationTimestamp) / 1000;
-
-      // Ensure the phone is flat on the table
-      if (Math.abs(e.beta) < 10 && Math.abs(e.gamma) < 10) {
-        const rotationChange = e.alpha * deltaTime; // Rate of change in alpha
-        currentDirection += rotationChange;
-        currentDirection %= 360; // Keep within bounds
-
-        // Apply direction to the second compass arrow
-        const adjustedDirection = initialDirection + currentDirection;
-        compass2Arrow.style.transform = `rotate(${adjustedDirection}deg)`;
-      }
-
-      lastRotationTimestamp = now;
-    }
-
-    // Initialize compass listeners
-    function init() {
-      const startBtn = document.getElementById("startBtn");
-
-      startBtn.addEventListener("click", () => {
-        if (typeof DeviceOrientationEvent.requestPermission === "function") {
-          DeviceOrientationEvent.requestPermission()
-            .then((response) => {
-              if (response === "granted") {
-                window.addEventListener("deviceorientation", updateCompass1, true);
-                window.addEventListener("deviceorientation", updateCompass2, true);
-              } else {
-                alert("Permission denied for device orientation.");
-              }
-            })
-            .catch(() => alert("Device orientation not supported."));
-        } else {
-          window.addEventListener("deviceorientation", updateCompass1, true);
-          window.addEventListener("deviceorientation", updateCompass2, true);
+            recalibrate(referenceHeading) {
+                this.currentHeading = referenceHeading;
+            }
         }
-      });
-    }
 
-    init();
-  </script>
+        const compass1Arrow = document.querySelector("#compass1 .arrow");
+        const compass2Arrow = document.querySelector("#compass2 .arrow");
+        const headingDisplay = document.getElementById("headingDisplay");
+
+        const compassMagnetic = new IndoorCompass(compass1Arrow);
+        const compassGyro = new IndoorCompass(compass2Arrow);
+
+        function updateCompasses(e) {
+            const magneticHeading = e.webkitCompassHeading || Math.abs(e.alpha - 360);
+            const gyroHeading = compassGyro.processGyroscopeData(e);
+
+            compassMagnetic.arrow.style.transform = `rotate(${magneticHeading}deg)`;
+            headingDisplay.textContent = `Heading: ${Math.round(gyroHeading)}°`;
+        }
+
+        function init() {
+            const startBtn = document.getElementById("startBtn");
+
+            startBtn.addEventListener("click", () => {
+                if (typeof DeviceOrientationEvent.requestPermission === "function") {
+                    DeviceOrientationEvent.requestPermission()
+                        .then((response) => {
+                            if (response === "granted") {
+                                window.addEventListener("deviceorientation", updateCompasses, true);
+                                startBtn.textContent = "Tracking Started";
+                                startBtn.disabled = true;
+                            } else {
+                                alert("Permission denied for device orientation.");
+                            }
+                        })
+                        .catch(() => alert("Device orientation not supported."));
+                } else {
+                    window.addEventListener("deviceorientation", updateCompasses, true);
+                    startBtn.textContent = "Tracking Started";
+                    startBtn.disabled = true;
+                }
+            });
+        }
+
+        init();
+    </script>
 </body>
 </html>
