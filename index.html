@@ -1,71 +1,36 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Direction in Box</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-    }
-    .direction {
-      font-size: 20px;
-      margin-top: 20px;
-    }
-  </style>
+  <title>Direction Without Compass</title>
 </head>
 <body>
-  <h1>Phone Direction Estimation</h1>
-  <p>Move the phone around (simulating tunnel-like movement) to see the estimated direction.</p>
-  <div class="direction">
-    <p><strong>Orientation:</strong></p>
-    <p id="orientation"></p>
-  </div>
-
+  <h1>Direction Tracker</h1>
+  <p id="direction">Calculating...</p>
   <script>
-    // Variables to hold the orientation data
-    let alpha = 0, beta = 0, gamma = 0;
+    let currentAngle = 0;
 
-    // Listen for accelerometer and gyroscope data
-    if (window.DeviceOrientationEvent) {
-      window.addEventListener("deviceorientation", (event) => {
-        // Device orientation data (accelerometer)
-        alpha = event.alpha;   // Rotation around Z-axis (compass heading)
-        beta = event.beta;     // Rotation around X-axis (tilt forward/backward)
-        gamma = event.gamma;   // Rotation around Y-axis (tilt left/right)
-
-        // Update the orientation on the page
-        document.getElementById("orientation").innerHTML = `
-          Alpha (Z-axis): ${alpha.toFixed(2)}°<br>
-          Beta (X-axis): ${beta.toFixed(2)}°<br>
-          Gamma (Y-axis): ${gamma.toFixed(2)}°<br>
-        `;
-      });
-    } else {
-      document.getElementById("orientation").innerHTML = "Device orientation is not supported.";
-    }
-
-    // Listen for gyroscope data if available
     if (window.DeviceMotionEvent) {
       window.addEventListener("devicemotion", (event) => {
-        // Gyroscope data (rotation rates)
-        let rotationRate = event.rotationRate;
-        if (rotationRate) {
-          // Rotation speed around each axis (in degrees per second)
-          let rotationX = rotationRate.alpha || 0;
-          let rotationY = rotationRate.beta || 0;
-          let rotationZ = rotationRate.gamma || 0;
+        if (event.rotationRate) {
+          // Rotation rate around the Z-axis (degrees/second)
+          const zRotationRate = event.rotationRate.alpha;
 
-          // Use rotation data to estimate direction of movement or change in orientation
-          // Display this data to the user or log it
-          console.log(`Rotation around X: ${rotationX}°/s`);
-          console.log(`Rotation around Y: ${rotationY}°/s`);
-          console.log(`Rotation around Z: ${rotationZ}°/s`);
+          // Calculate the change in angle over time
+          const deltaTime = 0.1; // Assuming event fires every 100ms
+          const deltaAngle = zRotationRate * deltaTime;
+
+          // Update the current angle
+          currentAngle += deltaAngle;
+          currentAngle %= 360; // Keep angle between 0 and 360
+
+          document.getElementById("direction").textContent = 
+            `Current direction: ${Math.round(currentAngle)}°`;
         }
       });
+    } else {
+      document.getElementById("direction").textContent = 
+        "DeviceMotionEvent not supported on this device.";
     }
-
   </script>
 </body>
 </html>
