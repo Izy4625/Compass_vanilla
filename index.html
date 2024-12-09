@@ -16,8 +16,8 @@
 
     .compass {
       position: relative;
-      width: 320px;
-      height: 320px;
+      width: 200px;
+      height: 200px;
       margin: 20px;
     }
 
@@ -64,12 +64,13 @@
   <script>
     const compass1Arrow = document.querySelector("#compass1 .arrow");
     const compass2Arrow = document.querySelector("#compass2 .arrow");
-    let initialDirection = null;
-    let lastUpdate = 0;
-    let accumulatedRotation = 0;
 
-    // Initialize the first compass
-    function handleCompass1(e) {
+    let initialDirection = null;
+    let lastRotationTimestamp = 0;
+    let currentDirection = 0;
+
+    // Function to update the first compass
+    function updateCompass1(e) {
       const heading = e.webkitCompassHeading || Math.abs(e.alpha - 360);
       compass1Arrow.style.transform = `rotate(${heading}deg)`;
 
@@ -78,38 +79,49 @@
       }
     }
 
-    // Gyroscope-based direction tracking
-    function handleGyroscope(e) {
+    // Function to update the second compass (gyroscope-based)
+    function updateCompass2(e) {
       const now = Date.now();
-      const deltaTime = (now - lastUpdate) / 1000; // Time in seconds
-      lastUpdate = now;
+      const deltaTime = (now - lastRotationTimestamp) / 1000;
 
-      const gyroZ = e.rotationRate.alpha; // Z-axis rotation in degrees/sec
-      const rotationDelta = gyroZ * deltaTime;
+      // Ensure the phone is flat on the table
+      if (Math.abs(e.beta) < 10 && Math.abs(e.gamma) < 10) {
+        const rotationChange = e.alpha * deltaTime; // Rate of change in alpha
+        currentDirection += rotationChange;
+        currentDirection %= 360; // Keep within bounds
 
-      accumulatedRotation += rotationDelta;
-      const adjustedDirection = (initialDirection + accumulatedRotation) % 360;
+        // Apply direction to the second compass arrow
+        const adjustedDirection = initialDirection + currentDirection;
+        compass2Arrow.style.transform = `rotate(${adjustedDirection}deg)`;
+      }
 
-      compass2Arrow.style.transform = `rotate(${adjustedDirection}deg)`;
+      lastRotationTimestamp = now;
     }
 
-    // Start both compasses
-    document.getElementById("startBtn").addEventListener("click", () => {
-      // First compass
-      if (window.DeviceOrientationEvent) {
-        window.addEventListener("deviceorientation", handleCompass1, true);
-      } else {
-        alert("Device orientation not supported.");
-      }
+    // Initialize compass listeners
+    function init() {
+      const startBtn = document.getElementById("startBtn");
 
-      // Second compass
-      if (window.DeviceMotionEvent) {
-        window.addEventListener("devicemotion", handleGyroscope, true);
-        lastUpdate = Date.now();
-      } else {
-        alert("Device motion not supported.");
-      }
-    });
+      startBtn.addEventListener("click", () => {
+        if (typeof DeviceOrientationEvent.requestPermission === "function") {
+          DeviceOrientationEvent.requestPermission()
+            .then((response) => {
+              if (response === "granted") {
+                window.addEventListener("deviceorientation", updateCompass1, true);
+                window.addEventListener("deviceorientation", updateCompass2, true);
+              } else {
+                alert("Permission denied for device orientation.");
+              }
+            })
+            .catch(() => alert("Device orientation not supported."));
+        } else {
+          window.addEventListener("deviceorientation", updateCompass1, true);
+          window.addEventListener("deviceorientation", updateCompass2, true);
+        }
+      });
+    }
+
+    init();
   </script>
 </body>
 </html>
