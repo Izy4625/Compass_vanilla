@@ -102,18 +102,26 @@
     };
 
     const handleDeviceOrientation = (event) => {
-      // For devices that support magnetic heading
-      const heading = event.webkitCompassHeading || event.alpha;
+  let heading = event.webkitCompassHeading;
 
-      if (heading !== undefined && heading !== null) {
-        if (initialHeading === null) {
-          initialHeading = heading;
-        }
-        const adjustedHeading = heading - initialHeading;
-        compass1.style.transform = `rotate(${-adjustedHeading}deg)`;
-        currentHeading = adjustedHeading;
-      }
-    };
+  // If webkitCompassHeading isn't available, fallback to event.alpha (this works for devices without magnetic sensors)
+  if (heading === undefined || heading === null) {
+    heading = Math.abs(event.alpha - 360);
+  }
+
+  // If we don't have a valid heading, we should ignore it.
+  if (heading !== undefined && heading !== null) {
+    if (initialHeading === null) {
+      initialHeading = heading; // Set the initial heading when the first event is triggered.
+    }
+    
+    const adjustedHeading = heading - initialHeading; // Adjust the heading based on the initial value.
+    
+    // Apply rotation to the first compass
+    compass1.style.transform = `rotate(${-adjustedHeading}deg)`;
+    currentHeading = adjustedHeading;
+  }
+};
 
     const handleDeviceMotion = (event) => {
       const acceleration = event.accelerationIncludingGravity;
