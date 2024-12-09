@@ -1,133 +1,115 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Dual Compass</title>
-    <style>
-      body {
-        display: flex;
-        flex-direction: column;
-        height: 100vh;
-        align-items: center;
-        justify-content: center;
-      }
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dual Compass</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background-color: #f0f0f0;
+    }
 
-      .compass-container {
-        display: flex;
-        gap: 50px;
-      }
+    .compass {
+      position: relative;
+      width: 320px;
+      height: 320px;
+      margin: 20px;
+    }
 
-      .compass {
-        position: relative;
-        width: 320px;
-        height: 320px;
-        border-radius: 50%;
-        box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
-        background: white;
-      }
+    .compass-circle {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 5px solid #333;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
-      .compass > .arrow {
-        position: absolute;
-        width: 0;
-        height: 0;
-        top: -20px;
-        left: 50%;
-        transform: translateX(-50%);
-        border-style: solid;
-        border-width: 30px 20px 0 20px;
-        border-color: red transparent transparent transparent;
-        z-index: 1;
-      }
+    .arrow {
+      position: absolute;
+      width: 0;
+      height: 0;
+      border-style: solid;
+      border-width: 50px 25px 0 25px;
+      border-color: red transparent transparent transparent;
+    }
 
-      .compass > .compass-circle {
-        position: absolute;
-        width: 90%;
-        height: 90%;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: url(https://purepng.com/public/uploads/large/purepng.com-compasscompassinstrumentnavigationcardinal-directionspointsdiagram-1701527842316onq7x.png)
-          center no-repeat;
-        background-size: contain;
-      }
-
-      .start-btn {
-        margin-top: 20px;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="compass-container">
-      <div class="compass" id="compass1">
-        <div class="arrow"></div>
-        <div class="compass-circle"></div>
-      </div>
-      <div class="compass" id="compass2">
-        <div class="arrow"></div>
-        <div class="compass-circle"></div>
-      </div>
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="compass" id="compass1">
+    <div class="compass-circle">
+      <div class="arrow"></div>
     </div>
-    <button class="start-btn">Start compass</button>
-    <script>
-      const compass1 = document.querySelector("#compass1 .compass-circle");
-      const compass2 = document.querySelector("#compass2 .compass-circle");
-      const startBtn = document.querySelector(".start-btn");
+  </div>
+  <div class="compass" id="compass2">
+    <div class="compass-circle">
+      <div class="arrow"></div>
+    </div>
+  </div>
+  <button id="startBtn">Start</button>
+  <script>
+    const compass1Arrow = document.querySelector("#compass1 .arrow");
+    const compass2Arrow = document.querySelector("#compass2 .arrow");
+    let initialDirection = null;
+    let lastUpdate = 0;
+    let accumulatedRotation = 0;
 
-      let initialHeading = null; // To store the initial heading from compass1
-      let currentHeading = 0; // To track the second compass heading
+    // Initialize the first compass
+    function handleCompass1(e) {
+      const heading = e.webkitCompassHeading || Math.abs(e.alpha - 360);
+      compass1Arrow.style.transform = `rotate(${heading}deg)`;
 
-      const isIOS =
-        navigator.userAgent.match(/(iPod|iPhone|iPad)/) &&
-        navigator.userAgent.match(/AppleWebKit/);
+      if (initialDirection === null) {
+        initialDirection = heading;
+      }
+    }
 
-      function init() {
-        startBtn.addEventListener("click", startCompass);
-        if (!isIOS) {
-          window.addEventListener("deviceorientationabsolute", handlerCompass1, true);
-        }
+    // Gyroscope-based direction tracking
+    function handleGyroscope(e) {
+      const now = Date.now();
+      const deltaTime = (now - lastUpdate) / 1000; // Time in seconds
+      lastUpdate = now;
+
+      const gyroZ = e.rotationRate.alpha; // Z-axis rotation in degrees/sec
+      const rotationDelta = gyroZ * deltaTime;
+
+      accumulatedRotation += rotationDelta;
+      const adjustedDirection = (initialDirection + accumulatedRotation) % 360;
+
+      compass2Arrow.style.transform = `rotate(${adjustedDirection}deg)`;
+    }
+
+    // Start both compasses
+    document.getElementById("startBtn").addEventListener("click", () => {
+      // First compass
+      if (window.DeviceOrientationEvent) {
+        window.addEventListener("deviceorientation", handleCompass1, true);
+      } else {
+        alert("Device orientation not supported.");
       }
 
-      function startCompass() {
-        if (isIOS) {
-          DeviceOrientationEvent.requestPermission()
-            .then((response) => {
-              if (response === "granted") {
-                window.addEventListener("deviceorientation", handlerCompass1, true);
-              } else {
-                alert("Permission to access device orientation was denied!");
-              }
-            })
-            .catch(() => alert("Device orientation not supported on this device!"));
-        }
-
-        window.addEventListener("devicemotion", handlerCompass2, true);
+      // Second compass
+      if (window.DeviceMotionEvent) {
+        window.addEventListener("devicemotion", handleGyroscope, true);
+        lastUpdate = Date.now();
+      } else {
+        alert("Device motion not supported.");
       }
-
-      // Handler for the first compass
-      function handlerCompass1(e) {
-        const heading = e.webkitCompassHeading || Math.abs(e.alpha - 360);
-        if (initialHeading === null) {
-          initialHeading = heading;
-        }
-        compass1.style.transform = `translate(-50%, -50%) rotate(${-heading}deg)`;
-      }
-
-      // Handler for the second compass
-      function handlerCompass2(e) {
-        if (initialHeading === null) return; // Wait for the first compass to initialize
-
-        const rotationRate = e.rotationRate;
-        if (rotationRate.alpha || rotationRate.beta || rotationRate.gamma) {
-          currentHeading += rotationRate.alpha / 50; // Adjust factor for sensitivity
-          currentHeading %= 360; // Keep within 0-360 range
-
-          const relativeHeading = (initialHeading + currentHeading) % 360;
-          compass2.style.transform = `translate(-50%, -50%) rotate(${-relativeHeading}deg)`;
-        }
-      }
-
-      init();
-    </script>
-  </body>
+    });
+  </script>
+</body>
 </html>
