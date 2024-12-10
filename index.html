@@ -1,157 +1,182 @@
+
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Accurate Dual Compass</title>
-  <style>
-    body {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      margin: 0;
-      background: #f4f4f4;
-      font-family: Arial, sans-serif;
-    }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Compass and Sensor Comparison</title>
+    <style>
+      body {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        align-items: center;
+        justify-content: center;
+      }
 
-    .compass-container {
-      display: flex;
-      gap: 50px;
-    }
+      .compass {
+        position: relative;
+        width: 320px;
+        height: 320px;
+        border-radius: 50%;
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+        margin: 20px;
+      }
 
-    .compass {
-      position: relative;
-      width: 200px;
-      height: 200px;
-      border-radius: 50%;
-      border: 5px solid #ccc;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-      background: url('https://purepng.com/public/uploads/large/purepng.com-compasscompassinstrumentnavigationcardinal-directionspointsdiagram-1701527842316onq7x.png')
-        no-repeat center / contain;
-    }
+      .compass > .compass-circle {
+        position: absolute;
+        width: 90%;
+        height: 90%;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        transition: transform 0.1s ease-out;
+        background: url(https://purepng.com/public/uploads/large/purepng.com-compasscompassinstrumentnavigationcardinal-directionspointsdiagram-1701527842316onq7x.png)
+          center no-repeat;
+        background-size: contain;
+      }
 
-    .arrow {
-      position: absolute;
-      width: 0;
-      height: 0;
-      top: -15px;
-      left: 50%;
-      transform: translateX(-50%);
-      border-style: solid;
-      border-width: 30px 20px 0 20px;
-      border-color: red transparent transparent transparent;
-      z-index: 1;
-    }
+      .direction {
+        font-size: 24px;
+        font-weight: bold;
+        margin: 10px;
+      }
 
-    button {
-      margin-top: 20px;
-      padding: 10px 20px;
-      font-size: 16px;
-      cursor: pointer;
-      border: none;
-      background-color: #007bff;
-      color: white;
-      border-radius: 5px;
-      transition: background-color 0.2s;
-    }
+      .buttons {
+        margin-top: 20px;
+        display: flex;
+        gap: 10px;
+      }
 
-    button:hover {
-      background-color: #0056b3;
-    }
-  </style>
-</head>
-<body>
-  <div class="compass-container">
-    <div class="compass" id="compass1">
-      <div class="arrow"></div>
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+      }
+
+      .result {
+        margin-top: 20px;
+        font-size: 18px;
+        font-weight: bold;
+        text-align: center;
+        color: #333;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="compass">
+      <div class="compass-circle"></div>
     </div>
-    <div class="compass" id="compass2">
-      <div class="arrow"></div>
+    <div class="direction">Compass Direction: 0°</div>
+    <div class="gyro-direction">Gyro Direction: 0°</div>
+    <div class="buttons">
+      <button class="start-btn">Start Compass</button>
+      <button class="compare-btn" disabled>Compare Directions</button>
     </div>
-  </div>
-  <button id="start">Start Compass</button>
-  <script>
-    const compass1 = document.getElementById("compass1");
-    const compass2 = document.getElementById("compass2");
-    const startButton = document.getElementById("start");
+    <div class="result"></div>
 
-    let initialHeading = null;
-    let currentHeading = 0;
-    let gyroAngle = 0; // To track the second compass
-    let lastUpdateTime = null;
-    let isSecondCompassSynchronized = false;
+    <script>
+      const compassCircle = document.querySelector(".compass-circle");
+      const directionText = document.querySelector(".direction");
+      const gyroDirectionText = document.querySelector(".gyro-direction");
+      const startBtn = document.querySelector(".start-btn");
+      const compareBtn = document.querySelector(".compare-btn");
+      const resultDiv = document.querySelector(".result");
 
-    const isFlat = ({ x, y, z }) => {
-      // Device is flat if Z-axis (gravity) is dominant
-      return Math.abs(z) > Math.abs(x) && Math.abs(z) > Math.abs(y);
-    };
+      let isCompassRunning = false;
+      let compassDirection = 0; // Compass direction
+      let gyroDirection = 0; // Direction calculated with gyroscope
+      let lastUpdate = performance.now(); // Timestamp for updates
 
-    const smoothValue = (current, target, factor) => {
-      return current + (target - current) * factor;
-    };
+      let gyro = { x: 0, y: 0, z: 0 }; // Gyroscope values
+      let accel = { x: 0, y: 0, z: 0 }; // Accelerometer values
+      let filterAngle = 0; // Angle from complementary filter
 
-    const startCompass = () => {
-      if (window.DeviceOrientationEvent) {
-        window.addEventListener("deviceorientation", handleDeviceOrientation);
-      }
+      let gyroValueWhenStopped = 0;
+      let compassValueWhenStopped = 0;
 
-      if (window.DeviceMotionEvent) {
-        window.addEventListener("devicemotion", handleDeviceMotion);
-      }
-    };
-
-    const handleDeviceOrientation = (event) => {
-      let heading = event.webkitCompassHeading;
-
-      // If webkitCompassHeading isn't available, fallback to event.alpha (this works for devices without magnetic sensors)
-      if (heading === undefined || heading === null) {
-        heading = Math.abs(event.alpha - 360);
-      }
-
-      // If we don't have a valid heading, we should ignore it.
-      if (heading !== undefined && heading !== null) {
-        if (initialHeading === null) {
-          initialHeading = heading; // Set the initial heading when the first event is triggered.
-        }
-
-        const adjustedHeading = heading - initialHeading; // Adjust the heading based on the initial value.
-
-        // Apply rotation to the first compass
-        compass1.style.transform = `rotate(${-adjustedHeading}deg)`;
-        currentHeading = adjustedHeading;
-
-        // If the second compass hasn't been synchronized yet, synchronize it with the first compass
-        if (!isSecondCompassSynchronized) {
-          gyroAngle = adjustedHeading;
-          compass2.style.transform = `rotate(${-gyroAngle}deg)`; // Sync second compass with first
-          isSecondCompassSynchronized = true; // Mark as synchronized
+      function toggleCompass() {
+        if (isCompassRunning) {
+          stopCompass();
+        } else {
+          startCompass();
         }
       }
-    };
 
-    const handleDeviceMotion = (event) => {
-      const acceleration = event.accelerationIncludingGravity;
-      if (isFlat(acceleration)) {
-        const now = Date.now();
-        if (!lastUpdateTime) {
-          lastUpdateTime = now;
-          return;
+      function startCompass() {
+        isCompassRunning = true;
+        startBtn.textContent = "Stop Compass";
+        compareBtn.disabled = true;
+
+        if (typeof DeviceOrientationEvent !== "undefined") {
+          window.addEventListener("deviceorientationabsolute", handleOrientation, true);
         }
-        const deltaTime = (now - lastUpdateTime) / 1000; // in seconds
-        lastUpdateTime = now;
-
-        const rotationRate = event.rotationRate.alpha || 0;
-        gyroAngle += rotationRate * deltaTime;
-        gyroAngle %= 360; // Keep within 0-360 range
-
-        // Now, gyroAngle operates independently of the first compass
-        compass2.style.transform = `rotate(${-gyroAngle}deg)`;
       }
-    };
 
-    startButton.addEventListener("click", startCompass);
-  </script>
-</body>
+      function stopCompass() {
+        isCompassRunning = false;
+        startBtn.textContent = "Start Compass";
+        compareBtn.disabled = false;
+
+        compassValueWhenStopped = compassDirection;
+        gyroValueWhenStopped = gyroDirection;
+
+        window.removeEventListener("deviceorientationabsolute", handleOrientation, true);
+      }
+
+      function handleOrientation(event) {
+        compassDirection = event.webkitCompassHeading || Math.abs(event.alpha - 360);
+        compassCircle.style.transform = `translate(-50%, -50%) rotate(${-compassDirection}deg)`;
+        directionText.textContent = `Compass Direction: ${Math.round(compassDirection)}°`;
+      }
+
+      function handleMotion(event) {
+        const now = performance.now();
+        const deltaTime = (now - lastUpdate) / 1000;
+        lastUpdate = now;
+
+        gyro = {
+          x: event.rotationRate.alpha || 0,
+          y: event.rotationRate.beta || 0,
+          z: event.rotationRate.gamma || 0,
+        };
+
+        accel = {
+          x: event.acceleration.x || 0,
+          y: event.acceleration.y || 0,
+          z: event.acceleration.z || 0,
+        };
+
+        const accelAngle = Math.atan2(accel.y, accel.z) * (180 / Math.PI);
+        filterAngle = 0.98 * (filterAngle + gyro.y * deltaTime) + 0.02 * accelAngle;
+
+        gyroDirection = (gyroDirection + gyro.z * deltaTime) % 360;
+        if (gyroDirection < 0) gyroDirection += 360;
+
+        gyroDirectionText.textContent = `Gyro Direction: ${Math.round(gyroDirection)}°`;
+      }
+
+      function compareDirections() {
+        let compassDifference = compassDirection - compassValueWhenStopped;
+        let gyroDifference = gyroValueWhenStopped - gyroDirection;
+        const differenceBetweenDifferences = Math.abs(compassDifference - gyroDifference);
+        const isAccurate = differenceBetweenDifferences <= 10;
+
+        resultDiv.innerHTML = `
+          <p>Result: <span style="color: ${isAccurate ? 'green' : 'red'};">${isAccurate ? "TRUE" : "FALSE"}</span></p>
+          <p>Compass at stop: ${Math.round(compassValueWhenStopped)}°, Compass at start: ${Math.round(compassDirection)}°, Difference: ${Math.round(compassDifference)}°</p>
+          <p>Gyro at stop: ${Math.round(gyroValueWhenStopped)}°, Gyro at start: ${Math.round(gyroDirection)}°, Difference: ${Math.round(gyroDifference)}°</p>
+          <p>Difference between differences: ${Math.round(differenceBetweenDifferences)}°</p>
+        `;
+      }
+
+      startBtn.addEventListener("click", toggleCompass);
+      compareBtn.addEventListener("click", compareDirections);
+
+      if (typeof DeviceMotionEvent !== "undefined") {
+        window.addEventListener("devicemotion", handleMotion, true);
+      }
+    </script>
+  </body>
 </html>
+
+
